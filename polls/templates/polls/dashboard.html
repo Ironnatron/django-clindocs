@@ -1,0 +1,58 @@
+{% extends "polls/base.html" %}
+{% block title %}Dashboard | ClinDocs{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><div class="eyebrow">Workspace overview</div><h1>Good to see you, {{ request.user.first_name|default:request.user.email }}</h1><p>Your clinical study workspace at a glance.</p></div>
+  <a class="btn btn-outline-secondary" href="{% url 'studies' %}"><i class="fas fa-arrow-right"></i> View studies</a>
+</div>
+<section class="kpi-grid" aria-label="Workspace summary">
+  <article class="kpi-card" style="--accent:#0000c9"><div class="kpi-label">Visible studies</div><div class="kpi-value">{{ total_studies }}</div><div class="kpi-meta">Studies in your authorized scope</div></article>
+  <article class="kpi-card" style="--accent:#0ebdba"><div class="kpi-label">Active studies</div><div class="kpi-value">{{ active_studies }}</div><div class="kpi-meta">Currently in progress</div></article>
+  <article class="kpi-card" style="--accent:#f0a638"><div class="kpi-label">Completed studies</div><div class="kpi-value">{{ completed_studies }}</div><div class="kpi-meta">Completed in this workspace</div></article>
+  {% if can_manage_users %}<article class="kpi-card" style="--accent:#df7181"><div class="kpi-label">User accounts</div><div class="kpi-value">{{ total_users }}</div><div class="kpi-meta">Active and inactive accounts</div></article>{% else %}<article class="kpi-card" style="--accent:#df7181"><div class="kpi-label">Access profile</div><div class="kpi-value" style="font-size:20px">{{ request.user.role.name|default:"Team member" }}</div><div class="kpi-meta">Role-based study access</div></article>{% endif %}
+</section>
+<section class="section-panel">
+  <div class="section-panel-header"><h2>Recent clinical studies</h2><span class="subtle">Updated study records</span></div>
+  <div class="section-panel-body"><div id="dashboard-studies" class="data-loading"><i class="fas fa-circle-notch fa-spin"></i> Loading studies</div></div>
+</section>
+<section class="section-panel">
+  <div class="section-panel-header"><h2>Phase 1 workspace</h2><span class="subtle">Foundation modules</span></div>
+  <div class="section-panel-body">
+    <div class="row">
+      <div class="col-md-4 mb-3 mb-md-0"><div class="activity-placeholder"><i class="fas fa-flask"></i><div><strong>Clinical studies</strong><span>Study setup, team assignment, and status tracking.</span></div></div></div>
+      {% if can_manage_users %}<div class="col-md-4 mb-3 mb-md-0"><div class="activity-placeholder"><i class="fas fa-users"></i><div><strong>User management</strong><span>Manage accounts and study access.</span></div></div></div>{% endif %}
+      {% if can_manage_roles %}<div class="col-md-4"><div class="activity-placeholder"><i class="fas fa-user-shield"></i><div><strong>Role management</strong><span>Configure permissions for each responsibility.</span></div></div></div>{% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}
+{% block page_scripts %}
+<script>
+$(function () {
+  $.getJSON("/api/studies/?ordering=-updated_at").done(function (data) {
+    var studies = Array.isArray(data) ? data : (data.results || []);
+    var target = $("#dashboard-studies").empty();
+    if (!studies.length) {
+      target.replaceWith('<div class="empty-state"><i class="fas fa-folder-open"></i><strong>No studies in your workspace yet</strong><span>Studies you are assigned to will appear here.</span></div>');
+      return;
+    }
+    target.dxDataGrid({
+      dataSource: studies.slice(0, 6),
+      keyExpr: "id",
+      showBorders: false,
+      rowAlternationEnabled: true,
+      columnAutoWidth: true,
+      columns: [
+        { dataField: "study_id", caption: "Study ID", width: 110 },
+        { dataField: "title", caption: "Study title", minWidth: 180 },
+        { dataField: "sponsor_name", caption: "Sponsor", minWidth: 130 },
+        { dataField: "status", caption: "Status", width: 115, cellTemplate: function (cell, info) { cell.html(ClinDocs.statusBadge(info.value)); } },
+        { caption: "", width: 90, allowFiltering: false, cellTemplate: function (cell, info) { $("<a>").addClass("dx-link").attr("href", "/studies/" + info.data.id + "/").text("View details").appendTo(cell); } }
+      ],
+      paging: { enabled: false },
+      searchPanel: { visible: false }
+    });
+  }).fail(function () { $("#dashboard-studies").html('<div class="empty-state"><strong>Studies are unavailable</strong><span>Refresh the page to try again.</span></div>'); });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "polls/base.html" %}
+{% load static %}
+{% block title %}Sign in | ClinDocs{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <section class="auth-card" aria-labelledby="login-title">
+    <a class="auth-brand" href="{% url 'login' %}"><span class="brand-mark"><i class="fas fa-plus"></i></span> ClinDocs</a>
+    <div class="eyebrow">Clinical operations workspace</div>
+    <h1 id="login-title">Welcome back</h1>
+    <p class="auth-intro">Sign in with your organization account to continue.</p>
+    <div class="alert alert-danger form-alert" id="login-error" role="alert"></div>
+    <form id="login-form" novalidate>
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="email">Email address</label>
+        <input class="form-control" id="email" name="email" type="email" autocomplete="username" placeholder="name@organization.com" required>
+      </div>
+      <div class="form-group">
+        <div class="d-flex justify-content-between"><label for="password">Password</label><a href="{% url 'password-reset' %}" class="small">Forgot password?</a></div>
+        <div class="password-wrap">
+          <input class="form-control" id="password" name="password" type="password" autocomplete="current-password" required>
+          <button type="button" class="password-toggle" id="toggle-password" aria-label="Show password"><i class="far fa-eye"></i></button>
+        </div>
+      </div>
+      <div class="custom-control custom-checkbox mb-2">
+        <input class="custom-control-input" id="remember" type="checkbox">
+        <label class="custom-control-label small" for="remember">Remember my email</label>
+      </div>
+      <button class="btn btn-primary auth-submit" id="login-button" type="submit"><span class="button-label">Sign in</span><span class="button-loading d-none"><i class="fas fa-circle-notch fa-spin"></i> Signing in</span></button>
+    </form>
+    <div class="auth-foot">Authorized users only <span class="footer-dot">&middot;</span> Secure clinical workspace</div>
+  </section>
+</div>
+{% endblock %}
+{% block page_scripts %}
+<script>
+$(function () {
+  var remembered = localStorage.getItem("clindocs-remembered-email");
+  if (remembered) { $("#email").val(remembered); $("#remember").prop("checked", true); }
+  $("#toggle-password").on("click", function () {
+    var input = $("#password");
+    var visible = input.attr("type") === "password";
+    input.attr("type", visible ? "text" : "password");
+    $(this).attr("aria-label", visible ? "Hide password" : "Show password").find("i").toggleClass("fa-eye fa-eye-slash");
+  });
+  $("#login-form").on("submit", function (event) {
+    event.preventDefault();
+    var email = $("#email").val().trim();
+    var password = $("#password").val();
+    if (!email || !$("#email")[0].checkValidity() || !password) {
+      $("#login-error").text("Enter a valid email address and password.").addClass("show");
+      return;
+    }
+    $("#login-error").removeClass("show");
+    $("#login-button").prop("disabled", true).find(".button-label").addClass("d-none").end().find(".button-loading").removeClass("d-none");
+    ClinDocs.api("POST", "/api/auth/login/", { email: email, password: password })
+      .done(function () {
+        if ($("#remember").is(":checked")) localStorage.setItem("clindocs-remembered-email", email);
+        else localStorage.removeItem("clindocs-remembered-email");
+        window.location.assign("/");
+      })
+      .fail(function (response) { $("#login-error").text(ClinDocs.errorMessage(response)).addClass("show"); })
+      .always(function () { $("#login-button").prop("disabled", false).find(".button-label").removeClass("d-none").end().find(".button-loading").addClass("d-none"); });
+  });
+});
+</script>
+{% endblock %}

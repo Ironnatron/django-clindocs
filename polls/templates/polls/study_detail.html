@@ -1,0 +1,107 @@
+{% extends "polls/base.html" %}
+{% block title %}Study Details | ClinDocs{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><div class="eyebrow"><a href="{% url 'studies' %}">Clinical studies</a> / Study record</div><h1 id="study-title">Loading study</h1><p id="study-protocol">Study details and authorized team</p></div>
+  <div class="d-flex flex-wrap" style="gap:8px">
+    {% if perms.polls.assign_study_members %}<button class="btn btn-outline-secondary" id="assign-member" type="button"><i class="fas fa-user-plus"></i> Assign member</button>{% endif %}
+    {% if perms.polls.change_clinicalstudy %}<a class="btn btn-outline-secondary" id="edit-study" href="{% url 'studies' %}?edit={{ study_id }}"><i class="fas fa-pen"></i> Edit study</a>{% endif %}
+    <a class="btn btn-outline-secondary" href="{% url 'studies' %}"><i class="fas fa-arrow-left"></i> Back to studies</a>
+  </div>
+</div>
+<div id="study-loading" class="data-loading"><i class="fas fa-circle-notch fa-spin"></i> Loading study information</div>
+<div id="study-content" class="d-none">
+  <div class="study-banner"><div><h2 id="banner-title"></h2><p id="banner-subtitle"></p></div><div id="banner-status"></div></div>
+  <section class="kpi-grid" aria-label="Study summary">
+    <article class="kpi-card" style="--accent:#0000c9"><div class="kpi-label">Assigned users</div><div class="kpi-value" id="kpi-members">0</div><div class="kpi-meta">Active team assignments</div></article>
+    <article class="kpi-card" style="--accent:#0ebdba"><div class="kpi-label">Study duration</div><div class="kpi-value" id="kpi-duration">—</div><div class="kpi-meta">Planned calendar duration</div></article>
+    <article class="kpi-card" style="--accent:#f0a638"><div class="kpi-label">Study status</div><div class="kpi-value" id="kpi-status" style="font-size:20px">—</div><div class="kpi-meta">Current lifecycle state</div></article>
+    <article class="kpi-card" style="--accent:#df7181"><div class="kpi-label">Planned enrollment</div><div class="kpi-value" id="kpi-enrollment">0</div><div class="kpi-meta">Participants</div></article>
+  </section>
+  <div class="row">
+    <div class="col-lg-7">
+      <section class="section-panel"><div class="section-panel-header"><h2>Study overview</h2><span id="study-id-label" class="subtle"></span></div><div class="section-panel-body"><div class="detail-grid" id="overview-details"></div><h3 class="detail-title">Description</h3><div id="study-description" class="small text-muted">No description provided.</div></div></section>
+      <section class="section-panel"><div class="section-panel-header"><h2>Sponsor and clinical information</h2></div><div class="section-panel-body"><div class="detail-grid" id="sponsor-details"></div></div></section>
+      <section class="section-panel"><div class="section-panel-header"><h2>Study timeline</h2></div><div class="section-panel-body"><div class="detail-grid" id="timeline-details"></div></div></section>
+    </div>
+    <div class="col-lg-5">
+      <section class="section-panel"><div class="section-panel-header"><h2>Study team</h2><span class="subtle" id="team-count"></span></div><div class="section-panel-body" id="team-list"><div class="empty-state">No assigned study members.</div></div></section>
+      <section class="section-panel"><div class="section-panel-header"><h2>Upcoming modules</h2></div><div class="section-panel-body"><div class="module-grid">
+        <div class="module-placeholder"><i class="far fa-file-alt"></i>Documents<span class="d-block mt-1">Available in upcoming phase</span></div>
+        <div class="module-placeholder"><i class="fas fa-archive"></i>TMF<span class="d-block mt-1">Available in upcoming phase</span></div>
+        <div class="module-placeholder"><i class="fas fa-check-double"></i>Review &amp; approval<span class="d-block mt-1">Available in upcoming phase</span></div>
+        <div class="module-placeholder"><i class="fas fa-chart-bar"></i>Study reports<span class="d-block mt-1">Available in upcoming phase</span></div>
+      </div></div></section>
+    </div>
+  </div>
+</div>
+
+{% if perms.polls.assign_study_members %}
+<div class="modal fade" id="member-modal" tabindex="-1" role="dialog" aria-labelledby="member-modal-title" aria-hidden="true"><div class="modal-dialog" role="document"><div class="modal-content">
+  <form id="member-form">{% csrf_token %}
+    <div class="modal-header"><div><div class="eyebrow mb-1">Study access</div><h2 class="modal-title" id="member-modal-title">Assign study member</h2></div><button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button></div>
+    <div class="modal-body"><div class="alert alert-danger form-alert" id="member-error" role="alert"></div><div class="form-group"><label for="member-user">User *</label><select class="form-control" id="member-user" required><option value="">Select a user</option></select><small class="form-text">The user's active application role is recorded with this assignment.</small></div></div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cancel</button><button type="submit" id="save-member" class="btn btn-primary"><i class="fas fa-user-plus"></i> Assign member</button></div>
+  </form>
+</div></div></div>
+{% endif %}
+{% endblock %}
+{% block page_scripts %}
+<script>
+$(function () {
+  var studyId = "{{ study_id|escapejs }}";
+  var study;
+  function detail(label, value) { return '<div class="detail-item"><small>' + ClinDocs.escape(label) + '</small><strong>' + ClinDocs.escape(value || "—") + '</strong></div>'; }
+  function pretty(value) { return value ? value.replace(/_/g, " ").replace(/\b\w/g, function (letter) { return letter.toUpperCase(); }) : "—"; }
+  function formatDate(value) { return value ? new Date(value + "T00:00:00").toLocaleDateString() : "—"; }
+  function renderTeam(members) {
+    $("#team-count").text(members.length + " member" + (members.length === 1 ? "" : "s"));
+    if (!members.length) { $("#team-list").html('<div class="empty-state"><i class="fas fa-user-friends"></i><strong>No assigned members</strong><span>Assign authorized users to this study.</span></div>'); return; }
+    var html = members.map(function (member) {
+      var user = member.user;
+      var remove = {% if perms.polls.assign_study_members %}'<button class="btn btn-sm btn-outline-secondary member-remove" data-user="' + ClinDocs.escape(user.id) + '" title="Remove member"><i class="fas fa-user-minus"></i></button>'{% else %}''{% endif %};
+      return '<div class="d-flex align-items-center justify-content-between border-bottom py-2"><div class="d-flex align-items-center"><span class="avatar mr-2">' + ClinDocs.escape((user.full_name || user.email).slice(0, 1).toUpperCase()) + '</span><div><strong class="d-block" style="font-size:11px">' + ClinDocs.escape(user.full_name) + '</strong><small class="text-muted">' + ClinDocs.escape((member.assigned_role && member.assigned_role.name) || user.role_name || "Study member") + '</small></div></div>' + remove + '</div>';
+    }).join("");
+    $("#team-list").html(html);
+    $(".member-remove").on("click", function () {
+      var userId = $(this).data("user");
+      if (!window.confirm("Remove this user from the study?")) return;
+      ClinDocs.api("DELETE", "/api/studies/" + study.id + "/members/" + userId + "/").done(loadStudy).fail(function (response) { ClinDocs.toast(ClinDocs.errorMessage(response), true); });
+    });
+  }
+  function loadStudy() {
+    $.getJSON("/api/studies/" + studyId + "/").done(function (data) {
+      study = data;
+      $("#study-title, #banner-title").text(data.title);
+      $("#study-protocol").text(data.protocol_number + " · " + data.study_id);
+      $("#banner-subtitle").text((data.sponsor_name || "Sponsor not specified") + " · " + (data.therapeutic_area || "Therapeutic area not specified"));
+      $("#banner-status").html(ClinDocs.statusBadge(data.status));
+      $("#study-id-label").text(data.study_id);
+      $("#overview-details").html(detail("Protocol number", data.protocol_number) + detail("Study type", data.study_type) + detail("Therapeutic area", data.therapeutic_area) + detail("Clinical phase", data.clinical_phase ? "Phase " + data.clinical_phase : "—") + detail("Study manager", data.study_manager && data.study_manager.full_name) + detail("Created by", data.created_by && data.created_by.full_name) + detail("Created", data.created_at && new Date(data.created_at).toLocaleDateString()) + detail("Last modified", data.updated_at && new Date(data.updated_at).toLocaleDateString()));
+      $("#study-description").text(data.description || "No description provided.");
+      $("#sponsor-details").html(detail("Sponsor", data.sponsor_name) + detail("Sponsor contact", data.sponsor_contact) + detail("Sponsor email", data.sponsor_email) + detail("CRO", data.cro_name) + detail("Study design", data.study_design) + detail("Indication", data.indication) + detail("Study sites", data.number_of_sites));
+      $("#timeline-details").html(detail("Start date", formatDate(data.start_date)) + detail("Estimated completion", formatDate(data.estimated_completion_date)) + detail("Actual completion", formatDate(data.actual_completion_date)) + detail("Status", pretty(data.status)));
+      $("#kpi-members").text(data.assigned_user_count || 0); $("#kpi-status").text(pretty(data.status)); $("#kpi-enrollment").text(data.planned_enrollment || 0);
+      if (data.start_date && data.estimated_completion_date) { var days = Math.max(0, Math.round((new Date(data.estimated_completion_date) - new Date(data.start_date)) / 86400000)); $("#kpi-duration").text(days + " days"); }
+      renderTeam(data.members || []); $("#study-loading").addClass("d-none"); $("#study-content").removeClass("d-none");
+    }).fail(function (response) { $("#study-loading").html('<div class="empty-state"><strong>Study unavailable</strong><span>' + ClinDocs.escape(ClinDocs.errorMessage(response)) + '</span></div>'); });
+  }
+  loadStudy();
+  {% if perms.polls.assign_study_members %}
+  $("#assign-member").on("click", function () {
+    $.getJSON("/api/studies/candidates/").done(function (candidates) {
+      var assigned = (study.members || []).map(function (member) { return String(member.user.id); });
+      var userSelect = $("#member-user").empty().append('<option value="">Select a user</option>');
+      candidates.filter(function (candidate) { return assigned.indexOf(String(candidate.id)) === -1; }).forEach(function (candidate) { $("<option>").val(candidate.id).text(candidate.full_name + " · " + candidate.employee_id).appendTo(userSelect); });
+      $("#member-error").removeClass("show"); $("#member-modal").modal("show");
+    }).fail(function (response) { ClinDocs.toast(ClinDocs.errorMessage(response), true); });
+  });
+  $("#member-form").on("submit", function (event) {
+    event.preventDefault();
+    var payload = { user_id: $("#member-user").val() };
+    ClinDocs.api("POST", "/api/studies/" + studyId + "/members/", payload).done(function () { $("#member-modal").modal("hide"); ClinDocs.toast("Study member assigned."); loadStudy(); }).fail(function (response) { $("#member-error").text(ClinDocs.errorMessage(response)).addClass("show"); });
+  });
+  {% endif %}
+});
+</script>
+{% endblock %}

@@ -1,0 +1,177 @@
+{% extends "polls/base.html" %}
+{% block title %}Clinical Studies | ClinDocs{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><div class="eyebrow">Study portfolio</div><h1>Clinical Studies</h1><p>Manage study details, timelines, sponsors, and authorized study teams.</p></div>
+  {% if perms.polls.add_clinicalstudy %}<button class="btn btn-primary" id="add-study" type="button"><i class="fas fa-plus"></i> New study</button>{% endif %}
+</div>
+<section class="section-panel">
+  <div class="section-panel-header"><h2>Study register</h2><span class="subtle">Records are scoped to your study access</span></div>
+  <div class="section-panel-body">
+    <div class="grid-toolbar">
+      <input id="study-search" class="form-control" type="search" placeholder="Search studies, protocol, sponsor..." aria-label="Search studies">
+      <select id="study-status" class="form-control" aria-label="Filter by study status" style="max-width:180px">
+        <option value="">All statuses</option><option value="draft">Draft</option><option value="planning">Planning</option><option value="active">Active</option><option value="on_hold">On Hold</option><option value="completed">Completed</option><option value="archived">Archived</option>
+      </select>
+    </div>
+    <div id="study-grid" class="data-loading"><i class="fas fa-circle-notch fa-spin"></i> Loading clinical studies</div>
+  </div>
+</section>
+
+{% if perms.polls.add_clinicalstudy or perms.polls.change_clinicalstudy %}
+<div class="modal fade" id="study-modal" tabindex="-1" role="dialog" aria-labelledby="study-modal-title" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document"><div class="modal-content">
+    <form id="study-form" novalidate>
+      {% csrf_token %}
+      <div class="modal-header"><div><div class="eyebrow mb-1">Study setup</div><h2 class="modal-title" id="study-modal-title">Create clinical study</h2></div><button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button></div>
+      <div class="modal-body">
+        <div class="alert alert-danger form-alert" id="study-error" role="alert"></div>
+        <h3 class="form-section-title">Basic information</h3>
+        <div class="form-row">
+          <div class="form-group col-md-6"><label for="protocol_number">Protocol number *</label><input class="form-control" id="protocol_number" name="protocol_number" required maxlength="100"></div>
+          <div class="form-group col-md-6"><label for="title">Study title *</label><input class="form-control" id="title" name="title" required maxlength="240"></div>
+          <div class="form-group col-md-6"><label for="study_type">Study type</label><input class="form-control" id="study_type" name="study_type" placeholder="Interventional, observational..."></div>
+          <div class="form-group col-md-6"><label for="therapeutic_area">Therapeutic area</label><input class="form-control" id="therapeutic_area" name="therapeutic_area"></div>
+          <div class="form-group col-12"><label for="description">Study description</label><textarea class="form-control" id="description" name="description" rows="2"></textarea></div>
+        </div>
+        <h3 class="form-section-title">Sponsor information</h3>
+        <div class="form-row">
+          <div class="form-group col-md-6"><label for="sponsor_name">Sponsor name *</label><input class="form-control" id="sponsor_name" name="sponsor_name" required></div>
+          <div class="form-group col-md-6"><label for="sponsor_contact">Sponsor contact</label><input class="form-control" id="sponsor_contact" name="sponsor_contact"></div>
+          <div class="form-group col-md-6"><label for="sponsor_email">Sponsor email</label><input class="form-control" id="sponsor_email" name="sponsor_email" type="email"></div>
+          <div class="form-group col-md-6"><label for="cro_name">CRO name</label><input class="form-control" id="cro_name" name="cro_name"></div>
+        </div>
+        <h3 class="form-section-title">Clinical information</h3>
+        <div class="form-row">
+          <div class="form-group col-md-6"><label for="clinical_phase">Clinical trial phase</label><select class="form-control" id="clinical_phase" name="clinical_phase"><option value="">Select phase</option><option value="I">Phase I</option><option value="II">Phase II</option><option value="III">Phase III</option><option value="IV">Phase IV</option></select></div>
+          <div class="form-group col-md-6"><label for="study_design">Study design</label><input class="form-control" id="study_design" name="study_design"></div>
+          <div class="form-group col-md-6"><label for="indication">Indication</label><input class="form-control" id="indication" name="indication"></div>
+          <div class="form-group col-md-3"><label for="planned_enrollment">Planned enrollment</label><input class="form-control" id="planned_enrollment" name="planned_enrollment" type="number" min="0" value="0"></div>
+          <div class="form-group col-md-3"><label for="number_of_sites">Study sites</label><input class="form-control" id="number_of_sites" name="number_of_sites" type="number" min="0" value="0"></div>
+        </div>
+        <h3 class="form-section-title">Timeline and ownership</h3>
+        <div class="form-row">
+          <div class="form-group col-md-4"><label for="start_date">Start date</label><input class="form-control" id="start_date" name="start_date" type="date"></div>
+          <div class="form-group col-md-4"><label for="estimated_completion_date">Estimated completion</label><input class="form-control" id="estimated_completion_date" name="estimated_completion_date" type="date"></div>
+          <div class="form-group col-md-4"><label for="actual_completion_date">Actual completion</label><input class="form-control" id="actual_completion_date" name="actual_completion_date" type="date"></div>
+          <div class="form-group col-md-4"><label for="status">Status</label><select class="form-control" id="status" name="status"><option value="draft">Draft</option><option value="planning">Planning</option><option value="active">Active</option><option value="on_hold">On Hold</option><option value="completed">Completed</option><option value="archived">Archived</option></select></div>
+          <div class="form-group col-md-6"><label for="study_manager_id">Study manager</label><select class="form-control" id="study_manager_id" name="study_manager_id"><option value="">Unassigned</option></select><small class="form-text">Managers are added to the study team automatically.</small></div>
+        </div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary" id="save-study"><i class="fas fa-check"></i> Save study</button></div>
+    </form>
+  </div></div>
+</div>
+{% endif %}
+{% endblock %}
+{% block page_scripts %}
+<script>
+$(function () {
+  var grid;
+  var studies = [];
+  var canArchive = {% if perms.polls.change_clinicalstudy %}true{% else %}false{% endif %};
+  var canAdd = {% if perms.polls.add_clinicalstudy %}true{% else %}false{% endif %};
+  var canEdit = {% if perms.polls.change_clinicalstudy %}true{% else %}false{% endif %};
+  var canAssign = {% if perms.polls.assign_study_members %}true{% else %}false{% endif %};
+  var candidates = [];
+  function editStudy(study) {
+    var form = $("#study-form")[0]; form.reset(); $("#study-form").data("study-id", study.id);
+    ["protocol_number", "title", "description", "study_type", "therapeutic_area", "sponsor_name", "sponsor_contact", "sponsor_email", "cro_name", "clinical_phase", "study_design", "indication", "planned_enrollment", "number_of_sites", "start_date", "estimated_completion_date", "actual_completion_date", "status"].forEach(function (key) { $("#" + key).val(study[key] == null ? "" : study[key]); });
+    if (canAssign) $("#study_manager_id").val(study.study_manager ? study.study_manager.id : "");
+    $("#study-modal-title").text("Edit clinical study"); $("#save-study").html('<i class="fas fa-check"></i> Save changes'); $("#study-error").removeClass("show"); $("#study-modal").modal("show");
+  }
+  function loadStudies() {
+    var status = $("#study-status").val();
+    var filters = [];
+    if (status) filters.push("status=" + encodeURIComponent(status));
+    if (status === "archived") filters.push("archived=true");
+    var url = "/api/studies/" + (filters.length ? "?" + filters.join("&") : "");
+    $("#study-grid").addClass("data-loading").html('<i class="fas fa-circle-notch fa-spin"></i> Loading clinical studies');
+    $.getJSON(url).done(function (data) {
+      studies = Array.isArray(data) ? data : (data.results || []);
+      if (!studies.length) {
+        $("#study-grid").removeClass("data-loading").html('<div class="empty-state"><i class="fas fa-folder-open"></i><strong>No studies found</strong><span>Adjust the filters or create a study to begin.</span></div>');
+        return;
+      }
+      if (grid) grid.option("dataSource", studies);
+      else {
+        $("#study-grid").empty();
+        grid = $("#study-grid").dxDataGrid({
+          dataSource: studies, keyExpr: "id", showBorders: false, rowAlternationEnabled: true, columnAutoWidth: true,
+          allowColumnResizing: true, columnResizingMode: "nextColumn", columnChooser: { enabled: true }, columnHidingEnabled: true,
+          filterRow: { visible: true }, headerFilter: { visible: true }, searchPanel: { visible: true, width: 220, placeholder: "Search all columns" },
+          paging: { pageSize: 20 }, pager: { showPageSizeSelector: true, allowedPageSizes: [10, 20, 50], showInfo: true },
+          columns: [
+            { dataField: "study_id", caption: "Study ID", width: 105 }, { dataField: "protocol_number", caption: "Protocol", width: 120 },
+            { dataField: "title", caption: "Study title", minWidth: 180 }, { dataField: "sponsor_name", caption: "Sponsor", minWidth: 130 },
+            { dataField: "therapeutic_area", caption: "Therapeutic area", minWidth: 120 }, { dataField: "clinical_phase", caption: "Phase", width: 80 },
+            { dataField: "study_manager.full_name", caption: "Study manager", minWidth: 130 },
+            { dataField: "start_date", caption: "Start date", dataType: "date", width: 105 },
+            { dataField: "estimated_completion_date", caption: "Est. end", dataType: "date", width: 105 },
+            { dataField: "assigned_user_count", caption: "Team", width: 68, alignment: "center" },
+            { dataField: "status", caption: "Status", width: 112, cellTemplate: function (cell, info) { cell.html(ClinDocs.statusBadge(info.value)); } },
+            { dataField: "created_at", caption: "Created", dataType: "datetime", width: 125 },
+            { caption: "Actions", width: 112, allowSorting: false, allowFiltering: false, cellTemplate: function (cell, info) {
+              $("<a>").addClass("btn btn-sm btn-outline-secondary mr-1").attr("href", "/studies/" + info.data.id + "/").attr("title", "View details").html('<i class="far fa-eye"></i>').appendTo(cell);
+              if (canEdit) $("<button>").addClass("btn btn-sm btn-outline-secondary mr-1").attr("title", "Edit study").html('<i class="fas fa-pen"></i>').on("click", function () { editStudy(info.data); }).appendTo(cell);
+              if (canArchive && !info.data.is_archived) $("<button>").addClass("btn btn-sm btn-outline-secondary").attr("title", "Archive study").html('<i class="fas fa-archive"></i>').on("click", function () { archiveStudy(info.data); }).appendTo(cell);
+            } }
+          ],
+          onExporting: function (event) {
+            var workbook = new ExcelJS.Workbook();
+            var worksheet = workbook.addWorksheet("Clinical studies");
+            DevExpress.excelExporter.exportDataGrid({ component: event.component, worksheet: worksheet, autoFilterEnabled: true })
+              .then(function () { return workbook.xlsx.writeBuffer(); })
+              .then(function (buffer) { saveAs(new Blob([buffer], { type: "application/octet-stream" }), "clindocs-studies.xlsx"); });
+            event.cancel = true;
+          },
+          onToolbarPreparing: function (event) {
+            event.toolbarOptions.items.unshift({ location: "after", widget: "dxButton", options: { icon: "exportxlsx", hint: "Export to Excel", onClick: function () { event.component.exportToExcel(false); } } });
+          }
+        }).dxDataGrid("instance");
+      }
+      $("#study-grid").removeClass("data-loading");
+    }).fail(function () { $("#study-grid").html('<div class="empty-state"><strong>Unable to load studies</strong><span>Refresh the page to try again.</span></div>'); });
+  }
+  function archiveStudy(study) {
+    if (!window.confirm("Archive " + study.study_id + "? It will be removed from the active study list.")) return;
+    ClinDocs.api("POST", "/api/studies/" + study.id + "/archive/").done(function () { ClinDocs.toast("Study archived."); loadStudies(); }).fail(function (response) { ClinDocs.toast(ClinDocs.errorMessage(response), true); });
+  }
+  $("#study-search").on("input", function () { if (grid) grid.searchByText(this.value); });
+  $("#study-status").on("change", loadStudies);
+  loadStudies();
+
+  if (canAssign) {
+    $.getJSON("/api/studies/candidates/").done(function (users) {
+      candidates = users;
+      users.forEach(function (user) { $("#study_manager_id").append($("<option>").val(user.id).text(user.full_name + " · " + user.employee_id)); });
+    });
+  } else {
+    $("#study_manager_id").prop("disabled", true);
+  }
+  if (canAdd) {
+    $("#add-study").on("click", function () {
+      $("#study-form")[0].reset(); $("#study-form").removeData("study-id"); $("#study-error").removeClass("show");
+      $("#study-modal-title").text("Create clinical study"); $("#save-study").html('<i class="fas fa-check"></i> Save study'); $("#study-modal").modal("show");
+    });
+  }
+  if (canAdd || canEdit) {
+    $("#study-form").on("submit", function (event) {
+      event.preventDefault();
+      var payload = {};
+      $(this).serializeArray().forEach(function (entry) { payload[entry.name] = entry.value; });
+      ["planned_enrollment", "number_of_sites"].forEach(function (key) { payload[key] = Number(payload[key] || 0); });
+      if (canAssign && !payload.study_manager_id) payload.study_manager_id = null;
+      var id = $(this).data("study-id");
+      $("#save-study").prop("disabled", true).html('<i class="fas fa-circle-notch fa-spin"></i> Saving');
+      ClinDocs.api(id ? "PATCH" : "POST", id ? "/api/studies/" + id + "/" : "/api/studies/", payload)
+        .done(function () { $("#study-modal").modal("hide"); ClinDocs.toast(id ? "Study updated." : "Study created."); loadStudies(); })
+        .fail(function (response) { $("#study-error").text(ClinDocs.errorMessage(response)).addClass("show"); })
+        .always(function () { $("#save-study").prop("disabled", false).html('<i class="fas fa-check"></i> Save study'); });
+    });
+      var editId = new URLSearchParams(window.location.search).get("edit");
+      if (editId) $.getJSON("/api/studies/" + editId + "/").done(editStudy);
+  }
+});
+</script>
+{% endblock %}
